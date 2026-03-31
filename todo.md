@@ -42,3 +42,15 @@
 - [ ] Update AEDE engine to read schedule from DB instead of hardcoded cron
 - [x] Add 6 new brands (StillHere, PromptAngel, CodeMama, MFS-Autopilot, MarketingForSoloPreneurs)
 - [x] Seed 6 new brands into dashboard database
+
+## Bug Fixes
+
+- [x] Fix Internal Server Error on dashboard load — root cause was Manus OAuth required; fixed via local dev bypass
+
+## Local Setup Fixes
+
+- [x] Add npm-compatible scripts so pnpm is not required locally
+- [x] Create start.sh one-command setup and launch script
+- [x] Fix Internal Server Error — added local dev auth bypass in context.ts and main.tsx
+- [ ] Push fixes to GitHub
+- [ ] Verify local run end-to-end after user pulls latest from GitHub
