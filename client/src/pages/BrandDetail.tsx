@@ -4,6 +4,7 @@ import { useParams, Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 import { ArrowLeft, Play, RefreshCw } from "lucide-react";
+import { ScheduleEditor } from "@/components/ScheduleEditor";
 
 const BRAND_COLORS: Record<string, string> = {
   frankgrant: "#1a6b3c",
@@ -13,9 +14,14 @@ const BRAND_COLORS: Record<string, string> = {
   busos: "#1a1a8a",
   coare: "#3a1a8a",
   chiefmarketingofficer: "#1a6b6b",
+  stillhere: "#2d6a4f",
+  promptangel: "#7b2d8b",
+  codemama: "#c0392b",
+  mfsautopilot: "#e67e22",
+  mfsolopreneurs: "#16a085",
 };
 
-type Tab = "posts" | "pipeline" | "info";
+type Tab = "posts" | "pipeline" | "schedule" | "info";
 
 function scoreClass(score: number | null | undefined) {
   if (!score) return "score-badge";
@@ -170,13 +176,13 @@ export default function BrandDetail() {
 
       {/* Tabs */}
       <div className="tab-bar px-6">
-        {(["posts", "pipeline", "info"] as Tab[]).map((t) => (
+        {(["posts", "pipeline", "schedule", "info"] as Tab[]).map((t) => (
           <button
             key={t}
             className={`tab-item ${tab === t ? "active" : ""}`}
             onClick={() => setTab(t)}
           >
-            {t === "posts" ? `Posts (${posts.length})` : t === "pipeline" ? `Pipeline (${runs.length})` : "Info"}
+            {t === "posts" ? `Posts (${posts.length})` : t === "pipeline" ? `Pipeline (${runs.length})` : t === "schedule" ? "Schedule" : "Info"}
           </button>
         ))}
       </div>
@@ -280,6 +286,21 @@ export default function BrandDetail() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Schedule tab */}
+        {tab === "schedule" && (
+          <div className="px-6 py-5 max-w-lg">
+            <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-4">
+              Override when this brand posts
+            </p>
+            <ScheduleEditor
+              brandId={brandId}
+              initialFrequency={(brand.frequency as "daily" | "weekly" | "monthly" | "off") ?? "daily"}
+              initialPostTime={brand.postTime ?? "09:00"}
+              initialPostDays={(brand.postDays as string[] | number[]) ?? undefined}
+            />
           </div>
         )}
 

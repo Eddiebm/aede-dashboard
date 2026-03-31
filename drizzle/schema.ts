@@ -45,6 +45,10 @@ export const brands = mysqlTable("brands", {
   tone: text("tone"),
   url: varchar("url", { length: 256 }),
   schedule: varchar("schedule", { length: 64 }),
+  // Scheduling control fields
+  frequency: mysqlEnum("frequency", ["daily", "weekly", "monthly", "off"]).default("daily").notNull(),
+  postTime: varchar("postTime", { length: 8 }).default("09:00").notNull(), // HH:MM format
+  postDays: json("postDays"), // For weekly: ["mon","wed","fri"], for monthly: [1,15]
   accentColor: varchar("accentColor", { length: 32 }),
   active: boolean("active").default(true).notNull(),
   cta: text("cta"),

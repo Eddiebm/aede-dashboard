@@ -18,3 +18,27 @@
 - [x] Seed database with 7 brands via seed-brands.mjs script
 - [x] Write vitest tests for key procedures (12/12 passing)
 - [x] Save checkpoint and deliver to user
+
+## New Brands — Phase 2
+
+- [x] Research stillhere repo
+- [x] Research PromptAngel repo
+- [x] Research CodeMama repo
+- [x] Research MFS-Autopilot repo
+- [x] Research Marketing-For-SoloPreneurs repo
+- [ ] Research rehab (clarify repo name)
+- [x] Add 6 new brands to AEDE brands.ts config
+- [x] Seed 6 new brands into dashboard database
+- [x] Update seed-brands.mjs with new brands
+- [ ] Push updated AEDE engine to GitHub
+- [ ] Save checkpoint
+
+## Scheduling Controls — Phase 3
+
+- [x] Add frequency field to brands table (daily/weekly/monthly/off)
+- [x] Add postTime and postDays fields to brands table
+- [x] Build ScheduleEditor component — frequency selector, time picker, day-of-week picker
+- [x] Wire ScheduleEditor to tRPC updateBrandSchedule mutation
+- [ ] Update AEDE engine to read schedule from DB instead of hardcoded cron
+- [x] Add 6 new brands (StillHere, PromptAngel, CodeMama, MFS-Autopilot, MarketingForSoloPreneurs)
+- [x] Seed 6 new brands into dashboard database

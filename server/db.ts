@@ -112,6 +112,26 @@ export async function toggleBrandActive(brandId: string, active: boolean) {
   await db.update(brands).set({ active }).where(eq(brands.brandId, brandId));
 }
 
+export async function updateBrandSchedule(
+  brandId: string,
+  schedule: {
+    frequency: "daily" | "weekly" | "monthly" | "off";
+    postTime: string;
+    postDays?: unknown;
+  }
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(brands)
+    .set({
+      frequency: schedule.frequency,
+      postTime: schedule.postTime,
+      postDays: schedule.postDays ?? null,
+    })
+    .where(eq(brands.brandId, brandId));
+}
+
 // ─── Posts ────────────────────────────────────────────────────────────────────
 export async function getPostsByBrand(brandId: string, limit = 50) {
   const db = await getDb();

@@ -10,6 +10,11 @@ const BRAND_COLORS: Record<string, string> = {
   busos: "#1a1a8a",
   coare: "#3a1a8a",
   chiefmarketingofficer: "#1a6b6b",
+  stillhere: "#2d6a4f",
+  promptangel: "#7b2d8b",
+  codemama: "#c0392b",
+  mfsautopilot: "#e67e22",
+  mfsolopreneurs: "#16a085",
 };
 
 function parseCronTime(cron: string | null | undefined): string {

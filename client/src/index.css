@@ -179,3 +179,97 @@
 .variant-chip {
   @apply text-xs font-mono px-1.5 py-0.5 border border-border bg-secondary text-muted-foreground uppercase tracking-wide;
 }
+
+/* ─── Schedule Editor ─────────────────────────────────────────────────────── */
+.schedule-editor {
+  @apply flex flex-col gap-4;
+}
+
+.schedule-row {
+  @apply flex items-center gap-3 flex-wrap;
+}
+
+.schedule-row--wrap {
+  @apply items-start;
+}
+
+.schedule-row--end {
+  @apply justify-end mt-2;
+}
+
+.schedule-label {
+  @apply font-mono text-xs text-muted-foreground uppercase tracking-widest w-28 shrink-0;
+}
+
+.schedule-hint {
+  @apply font-mono text-xs text-muted-foreground;
+}
+
+.schedule-hint--warn {
+  @apply text-amber-700;
+}
+
+/* Frequency buttons */
+.freq-buttons {
+  @apply flex gap-1;
+}
+
+.freq-btn {
+  @apply px-3 py-1.5 font-mono text-xs border border-border text-muted-foreground cursor-pointer transition-colors;
+}
+
+.freq-btn:hover {
+  @apply bg-secondary text-foreground;
+}
+
+.freq-btn.active {
+  @apply bg-foreground text-background border-foreground;
+}
+
+/* Time input */
+.time-input {
+  @apply font-mono text-sm border border-border px-2 py-1.5 bg-background text-foreground;
+  outline: none;
+}
+
+.time-input:focus {
+  @apply border-foreground;
+}
+
+/* Day buttons */
+.day-grid {
+  @apply flex gap-1 flex-wrap;
+}
+
+.month-grid {
+  @apply flex gap-1 flex-wrap max-w-xs;
+}
+
+.day-btn {
+  @apply px-2.5 py-1.5 font-mono text-xs border border-border text-muted-foreground cursor-pointer transition-colors;
+}
+
+.day-btn--sm {
+  @apply w-8 text-center;
+}
+
+.day-btn:hover {
+  @apply bg-secondary text-foreground;
+}
+
+.day-btn.active {
+  @apply bg-foreground text-background border-foreground;
+}
+
+/* Save button */
+.save-btn {
+  @apply px-5 py-2 font-mono text-xs bg-foreground text-background border border-foreground cursor-pointer transition-colors tracking-widest;
+}
+
+.save-btn:hover {
+  @apply bg-background text-foreground;
+}
+
+.save-btn:disabled {
+  @apply opacity-40 cursor-not-allowed;
+}

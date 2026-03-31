@@ -8,6 +8,7 @@ import {
   getBrandById,
   upsertBrand,
   toggleBrandActive,
+  updateBrandSchedule,
   getPostsByBrand,
   getAllPosts,
   insertPost,
@@ -64,6 +65,22 @@ export const appRouter = router({
       .input(z.object({ brandId: z.string(), active: z.boolean() }))
       .mutation(async ({ input }) => {
         await toggleBrandActive(input.brandId, input.active);
+        return { success: true };
+      }),
+
+    updateSchedule: protectedProcedure
+      .input(z.object({
+        brandId: z.string(),
+        frequency: z.enum(["daily", "weekly", "monthly", "off"]),
+        postTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Must be HH:MM format"),
+        postDays: z.array(z.union([z.string(), z.number()])).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await updateBrandSchedule(input.brandId, {
+          frequency: input.frequency,
+          postTime: input.postTime,
+          postDays: input.postDays,
+        });
         return { success: true };
       }),
   }),

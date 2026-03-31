@@ -14,9 +14,9 @@ if (!DATABASE_URL) {
 }
 
 const connection = await mysql.createConnection(DATABASE_URL);
-const db = drizzle(connection);
 
 const brands = [
+  // ── Original 7 ──────────────────────────────────────────────────────────
   {
     brandId: "frankgrant",
     name: "FrankGrant",
@@ -28,6 +28,8 @@ const brands = [
     accentColor: "#1a6b3c",
     active: true,
     cta: "Start your grant at frankgrant.pages.dev",
+    frequency: "daily",
+    postTime: "07:00",
   },
   {
     brandId: "nihpaylines",
@@ -40,6 +42,8 @@ const brands = [
     accentColor: "#1a4a8a",
     active: true,
     cta: "Track paylines at nihpaylines.com",
+    frequency: "daily",
+    postTime: "08:00",
   },
   {
     brandId: "rentlease",
@@ -52,6 +56,8 @@ const brands = [
     accentColor: "#7c3a1a",
     active: true,
     cta: "Manage your properties at leasingapp.pages.dev",
+    frequency: "daily",
+    postTime: "09:00",
   },
   {
     brandId: "rewbs",
@@ -64,6 +70,8 @@ const brands = [
     accentColor: "#8a1a1a",
     active: true,
     cta: "Get real at realestatewithoutbullshit.com",
+    frequency: "daily",
+    postTime: "10:00",
   },
   {
     brandId: "busos",
@@ -76,6 +84,8 @@ const brands = [
     accentColor: "#1a1a8a",
     active: true,
     cta: "Apply the BUSOS framework",
+    frequency: "daily",
+    postTime: "11:00",
   },
   {
     brandId: "coare",
@@ -88,6 +98,8 @@ const brands = [
     accentColor: "#3a1a8a",
     active: true,
     cta: "Explore COARE Holdings",
+    frequency: "daily",
+    postTime: "12:00",
   },
   {
     brandId: "chiefmarketingofficer",
@@ -100,16 +112,90 @@ const brands = [
     accentColor: "#1a6b6b",
     active: true,
     cta: "Get your AI CMO at chiefmarketingofficer.app",
+    frequency: "daily",
+    postTime: "13:00",
+  },
+
+  // ── 6 New Brands ─────────────────────────────────────────────────────────
+  {
+    brandId: "stillhere",
+    name: "StillHere",
+    description: "Keep your social media alive while you focus on running your business. Automated presence for busy founders.",
+    audience: "Founders, solopreneurs, and small business owners who struggle to stay consistent on social media",
+    tone: "Empathetic, practical, motivating. Speaks to the overwhelmed founder.",
+    url: "https://stillhere.app",
+    schedule: "0 14 * * *",
+    accentColor: "#2d6a4f",
+    active: true,
+    cta: "Keep your brand alive at StillHere",
+    frequency: "daily",
+    postTime: "14:00",
+  },
+  {
+    brandId: "promptangel",
+    name: "PromptAngel",
+    description: "Get your prompt right before you vibe code. Prompt engineering tool for AI-assisted developers and non-technical founders.",
+    audience: "Developers, vibe coders, and non-technical founders using AI to build products",
+    tone: "Sharp, witty, insider. Speaks the language of the AI-native builder generation.",
+    url: "https://promptangel.app",
+    schedule: "0 15 * * *",
+    accentColor: "#7b2d8b",
+    active: true,
+    cta: "Get your prompt right at PromptAngel",
+    frequency: "daily",
+    postTime: "15:00",
+  },
+  {
+    brandId: "codemama",
+    name: "CodeMama",
+    description: "Business Development Engine — AI-powered partner outreach and deal pipeline automation for biotech and life science companies.",
+    audience: "Biotech and life science companies seeking pharma, investor, and research partners",
+    tone: "Professional, strategic, results-focused. The voice of a seasoned BD executive.",
+    url: "https://code-mama.vercel.app",
+    schedule: "0 16 * * *",
+    accentColor: "#c0392b",
+    active: true,
+    cta: "Automate your BD pipeline at CodeMama",
+    frequency: "daily",
+    postTime: "16:00",
+  },
+  {
+    brandId: "mfsautopilot",
+    name: "MFS Autopilot",
+    description: "Marketing Funnel SaaS with AI post generation and Stripe billing. Full marketing funnel on autopilot for founders.",
+    audience: "Founders and small business owners who want a full marketing funnel running on autopilot",
+    tone: "Direct, results-oriented, no-fluff. Speaks to founders who want outcomes not features.",
+    url: "https://mfs-autopilot.vercel.app",
+    schedule: "0 17 * * *",
+    accentColor: "#e67e22",
+    active: true,
+    cta: "Put your marketing on autopilot",
+    frequency: "daily",
+    postTime: "17:00",
+  },
+  {
+    brandId: "mfsolopreneurs",
+    name: "MarketingForSoloPreneurs",
+    description: "Marketing education and tools specifically built for solopreneurs and one-person businesses.",
+    audience: "Solopreneurs, freelancers, and one-person businesses who do their own marketing",
+    tone: "Peer-to-peer, practical, encouraging. One solopreneur talking to another.",
+    url: "https://marketingforsolopreneurs.com",
+    schedule: "0 18 * * *",
+    accentColor: "#16a085",
+    active: true,
+    cta: "Market smarter as a solopreneur",
+    frequency: "daily",
+    postTime: "18:00",
   },
 ];
 
-console.log("Seeding brands...");
+console.log(`Seeding ${brands.length} brands...`);
 
 for (const brand of brands) {
   try {
     await connection.execute(
-      `INSERT INTO brands (brandId, name, description, audience, tone, url, schedule, accentColor, active, cta, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      `INSERT INTO brands (brandId, name, description, audience, tone, url, schedule, accentColor, active, cta, frequency, postTime, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
        ON DUPLICATE KEY UPDATE
          name = VALUES(name),
          description = VALUES(description),
@@ -120,6 +206,8 @@ for (const brand of brands) {
          accentColor = VALUES(accentColor),
          active = VALUES(active),
          cta = VALUES(cta),
+         frequency = VALUES(frequency),
+         postTime = VALUES(postTime),
          updatedAt = NOW()`,
       [
         brand.brandId,
@@ -132,6 +220,8 @@ for (const brand of brands) {
         brand.accentColor,
         brand.active ? 1 : 0,
         brand.cta,
+        brand.frequency,
+        brand.postTime,
       ]
     );
     console.log(`  ✓ ${brand.name}`);
@@ -141,4 +231,4 @@ for (const brand of brands) {
 }
 
 await connection.end();
-console.log("Done.");
+console.log(`\nDone. ${brands.length} brands seeded.`);
