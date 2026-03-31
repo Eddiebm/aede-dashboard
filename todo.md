@@ -17,4 +17,4 @@
 - [x] Wire frontend to tRPC backend
 - [x] Seed database with 7 brands via seed-brands.mjs script
 - [x] Write vitest tests for key procedures (12/12 passing)
-- [ ] Save checkpoint and deliver to user
+- [x] Save checkpoint and deliver to user
