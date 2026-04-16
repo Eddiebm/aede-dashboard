@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { Link } from "wouter";
-import { Play, Circle } from "lucide-react";
+import DashboardLayout from "@/components/DashboardLayout";
 
 const BRAND_COLORS: Record<string, string> = {
   frankgrant: "#1a6b3c",
@@ -55,15 +55,15 @@ function StatusDot({ status }: { status: string }) {
 }
 
 export default function Dashboard() {
-  const { data: brands = [], isLoading: brandsLoading } = trpc.brands.list.useQuery();
+  const { data: brands = [], isLoading: brandsLoading } = trpc.brands.all.useQuery();
   const { data: runs = [], isLoading: runsLoading } = trpc.pipeline.recent.useQuery({ limit: 15 });
   const { data: stats = [] } = trpc.posts.stats.useQuery();
 
   const statMap = Object.fromEntries(stats.map((s) => [s.brandId, s.total]));
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top bar */}
+    <DashboardLayout>
+      <div className="min-h-screen bg-background -m-4">
       <header className="border-b border-border px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <span className="font-mono text-xs text-muted-foreground tracking-widest uppercase">AEDE</span>
@@ -76,40 +76,6 @@ export default function Dashboard() {
       </header>
 
       <div className="flex">
-        {/* Sidebar */}
-        <aside className="sidebar sticky top-0">
-          <div className="px-4 pt-5 pb-3">
-            <p className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-3">Brands</p>
-          </div>
-          {brandsLoading ? (
-            <div className="px-4 py-2 text-sm text-muted-foreground font-mono">Loading…</div>
-          ) : (
-            brands.map((b) => (
-              <Link key={b.brandId} href={`/brand/${b.brandId}`}>
-                <div className="sidebar-brand-item">
-                  <span
-                    className="w-2 h-2 shrink-0"
-                    style={{ background: b.accentColor ?? BRAND_COLORS[b.brandId] ?? "#888" }}
-                  />
-                  <span className="truncate">{b.name}</span>
-                  {b.active ? (
-                    <span className="ml-auto dot-active" />
-                  ) : (
-                    <span className="ml-auto dot-inactive" />
-                  )}
-                </div>
-              </Link>
-            ))
-          )}
-
-          <div className="mt-auto border-t border-border px-4 py-4">
-            <p className="font-mono text-xs text-muted-foreground">
-              {brands.filter((b) => b.active).length}/{brands.length} active
-            </p>
-          </div>
-        </aside>
-
-        {/* Main content */}
         <main className="flex-1 min-w-0">
           {/* Stats row */}
           <div className="grid grid-cols-4 border-b border-border">
@@ -244,6 +210,7 @@ export default function Dashboard() {
           </div>
         </main>
       </div>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { useParams, Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -60,7 +61,7 @@ export default function BrandDetail() {
   const params = useParams<{ brandId: string }>();
   const brandId = params.brandId;
   const [tab, setTab] = useState<Tab>("posts");
-  const { isAuthenticated } = useAuth();
+  const { isOwner } = useAuth();
 
   const { data: brand, isLoading: brandLoading } = trpc.brands.get.useQuery({ brandId });
   const { data: posts = [], isLoading: postsLoading, refetch: refetchPosts } = trpc.posts.byBrand.useQuery({ brandId, limit: 50 });
@@ -84,22 +85,27 @@ export default function BrandDetail() {
 
   if (brandLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <span className="font-mono text-sm text-muted-foreground">Loading…</span>
-      </div>
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[40vh]">
+          <span className="font-mono text-sm text-muted-foreground">Loading…</span>
+        </div>
+      </DashboardLayout>
     );
   }
 
   if (!brand) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <span className="font-mono text-sm text-muted-foreground">Brand not found.</span>
-      </div>
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[40vh]">
+          <span className="font-mono text-sm text-muted-foreground">Brand not found.</span>
+        </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <DashboardLayout>
+    <div className="min-h-screen bg-background -m-4">
       {/* Top bar */}
       <header className="border-b border-border px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -112,7 +118,7 @@ export default function BrandDetail() {
           <span className="text-border">|</span>
           <span className="font-mono text-xs text-muted-foreground tracking-widest uppercase">AEDE</span>
         </div>
-        {isAuthenticated && (
+        {isOwner && (
           <button
             className="trigger-btn flex items-center gap-2"
             disabled={trigger.isPending}
@@ -197,7 +203,7 @@ export default function BrandDetail() {
             ) : posts.length === 0 ? (
               <div className="p-6">
                 <p className="font-mono text-sm text-muted-foreground">No posts yet.</p>
-                {isAuthenticated && (
+                {isOwner && (
                   <p className="text-sm text-muted-foreground mt-2">
                     Click <strong>Run Pipeline</strong> to generate content for this brand.
                   </p>
@@ -335,5 +341,6 @@ export default function BrandDetail() {
         )}
       </div>
     </div>
+    </DashboardLayout>
   );
 }
