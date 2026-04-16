@@ -4,9 +4,11 @@ import {
   DEFAULT_VIDEO_GENERATION_DURATION_SEC,
   MAX_VIDEO_UPLOAD_BYTES,
   PLATFORMS,
+  THREADS_GRAPH_BASE,
   type PlatformId,
 } from "@shared/constants";
 import { TRPCError } from "@trpc/server";
+import { TwitterApi } from "twitter-api-v2";
 import { dashboardProcedure, ownerProcedure, router } from "../_core/trpc";
 import { ENV } from "../_core/env";
 import {
@@ -109,9 +111,151 @@ async function publishVideoToPlatform(params: {
     return { success: true };
   }
 
+  if (platform === "twitter") {
+    const apiKey = credentials.apiKey?.trim();
+    const apiSecret = credentials.apiSecret?.trim();
+    const accessToken = credentials.accessToken?.trim();
+    const accessTokenSecret = credentials.accessTokenSecret?.trim();
+    if (!apiKey || !apiSecret || !accessToken || !accessTokenSecret) {
+      return {
+        success: false,
+        errorMessage:
+          "Twitter/X video publish requires apiKey, apiSecret, accessToken, and accessTokenSecret credentials.",
+      };
+    }
+    const buffer = await downloadBinary(videoUrl);
+    const client = new TwitterApi({
+      appKey: apiKey,
+      appSecret: apiSecret,
+      accessToken,
+      accessSecret: accessTokenSecret,
+    });
+    const rw = client.readWrite;
+    const mediaId = await rw.v1.uploadMedia(buffer, { mimeType: "video/mp4", target: "tweet" });
+    const tweet = await rw.v2.tweet({
+      text: caption?.trim() || "Video update",
+      media: { media_ids: [mediaId] },
+    });
+    return { success: true, postUrl: `https://twitter.com/i/web/status/${tweet.data.id}` };
+  }
+
+  if (platform === "mastodon") {
+    let instanceUrl = (credentials.instanceUrl ?? "").trim().replace(/\/+$/, "");
+    const accessToken = (credentials.accessToken ?? "").trim();
+    if (!instanceUrl || !accessToken) {
+      return {
+        success: false,
+        errorMessage:
+          "Mastodon video publish requires instanceUrl and accessToken credentials.",
+      };
+    }
+    if (!instanceUrl.startsWith("http")) {
+      instanceUrl = `https://${instanceUrl}`;
+    }
+    const buffer = await downloadBinary(videoUrl);
+    const uploadForm = new FormData();
+    uploadForm.append(
+      "file",
+      new Blob([new Uint8Array(buffer)], { type: "video/mp4" }),
+      "video.mp4"
+    );
+    const mediaRes = await fetch(`${instanceUrl}/api/v2/media`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: uploadForm,
+    });
+    if (!mediaRes.ok) {
+      const message = await mediaRes.text().catch(() => mediaRes.statusText);
+      return {
+        success: false,
+        errorMessage: `Mastodon media upload failed (${mediaRes.status}): ${message}`,
+      };
+    }
+    const media = (await mediaRes.json()) as { id?: string };
+    if (!media.id) {
+      return {
+        success: false,
+        errorMessage: "Mastodon media upload did not return a media id.",
+      };
+    }
+    const postRes = await fetch(`${instanceUrl}/api/v1/statuses`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        status: caption?.trim() || "",
+        media_ids: [media.id],
+      }),
+    });
+    if (!postRes.ok) {
+      const message = await postRes.text().catch(() => postRes.statusText);
+      return {
+        success: false,
+        errorMessage: `Mastodon status publish failed (${postRes.status}): ${message}`,
+      };
+    }
+    const posted = (await postRes.json()) as { url?: string };
+    return { success: true, postUrl: posted.url ?? instanceUrl };
+  }
+
+  if (platform === "threads") {
+    const accessToken = (credentials.accessToken ?? "").trim();
+    const userId = (credentials.userId ?? "").trim();
+    if (!accessToken || !userId) {
+      return {
+        success: false,
+        errorMessage: "Threads video publish requires accessToken and userId credentials.",
+      };
+    }
+    const createParams = new URLSearchParams({
+      media_type: "VIDEO",
+      video_url: videoUrl,
+      text: caption?.trim() || "",
+      access_token: accessToken,
+    });
+    const createRes = await fetch(
+      `${THREADS_GRAPH_BASE}/${encodeURIComponent(userId)}/threads?${createParams.toString()}`,
+      { method: "POST" }
+    );
+    if (!createRes.ok) {
+      const message = await createRes.text().catch(() => createRes.statusText);
+      return {
+        success: false,
+        errorMessage: `Threads container creation failed (${createRes.status}): ${message}`,
+      };
+    }
+    const createData = (await createRes.json()) as { id?: string };
+    if (!createData.id) {
+      return {
+        success: false,
+        errorMessage: "Threads container creation did not return an id.",
+      };
+    }
+    const publishParams = new URLSearchParams({
+      creation_id: createData.id,
+      access_token: accessToken,
+    });
+    const publishRes = await fetch(
+      `${THREADS_GRAPH_BASE}/${encodeURIComponent(
+        userId
+      )}/threads_publish?${publishParams.toString()}`,
+      { method: "POST" }
+    );
+    if (!publishRes.ok) {
+      const message = await publishRes.text().catch(() => publishRes.statusText);
+      return {
+        success: false,
+        errorMessage: `Threads publish failed (${publishRes.status}): ${message}`,
+      };
+    }
+    return { success: true, postUrl: createData.id };
+  }
+
   return {
     success: false,
-    errorMessage: `${platform} video publish is not supported yet — use Telegram or Discord for video auto-posting.`,
+    errorMessage: `${platform} video publish is not supported yet. Supported now: Twitter/X, Mastodon, Threads, Telegram, Discord.`,
   };
 }
 
@@ -316,6 +460,7 @@ export const videoRouter = router({
             brandId: input.brandId,
             platform,
             status: result.success ? "success" : "failed",
+            content: input.caption ?? null,
             postUrl: result.postUrl,
             errorMessage: result.errorMessage,
             simulated: false,
@@ -329,6 +474,7 @@ export const videoRouter = router({
             brandId: input.brandId,
             platform,
             status: "failed",
+            content: input.caption ?? null,
             errorMessage: `Video publish failed: ${message}`,
             simulated: false,
             publishedAt: new Date(),

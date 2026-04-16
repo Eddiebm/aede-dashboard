@@ -5,9 +5,11 @@ import {
   LEARNING_CTA_KEYWORDS,
   LEARNING_LOOKBACK_DAYS,
   DEFAULT_TEXT_CHAR_LIMIT,
+  THREADS_GRAPH_BASE,
 } from "@shared/constants";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
+import { TwitterApi } from "twitter-api-v2";
 import { z } from "zod";
 import { invokeLLM } from "../_core/llm";
 import { ENV } from "../_core/env";
@@ -24,6 +26,8 @@ import {
   insertApprovalQueue,
   getPublishLogsByBrand,
   getTopEngagementSignalsForBrand,
+  listSuccessfulPublishLogsForEngagementSync,
+  updatePublishLogEngagement,
   getPostsByBrand,
   getAllPosts,
   getPostStats,
@@ -40,6 +44,16 @@ function credentialsMap(
     out[r.platform as PlatformId] = r.credentials;
   }
   return out;
+}
+
+function parseTwitterStatusId(url: string): string | null {
+  const match = url.match(/status\/(\d+)/i);
+  return match?.[1] ?? null;
+}
+
+function parseMastodonStatusId(url: string): string | null {
+  const m = url.match(/\/(\d+)(?:\?.*)?$/);
+  return m?.[1] ?? null;
 }
 
 export const postsRouter = router({
@@ -333,6 +347,202 @@ export const postsRouter = router({
         simulated: r.simulated,
         publishedAt: r.publishedAt,
       }));
+    }),
+
+  syncEngagement: ownerProcedure
+    .input(
+      z.object({
+        brandId: z.string().min(1),
+        platforms: z.array(platformSchema).optional(),
+        limit: z.number().int().min(1).max(200).optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const brand = await getBrandByIdScoped(input.brandId, null);
+      if (!brand) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Brand not found." });
+      }
+
+      const logs = await listSuccessfulPublishLogsForEngagementSync({
+        brandId: input.brandId,
+        platforms: input.platforms,
+        limit: input.limit ?? 50,
+      });
+      const creds = credentialsMap(await getPlatformCredentialsForBrand(input.brandId));
+
+      const updated: Array<{
+        id: number;
+        platform: PlatformId;
+        likes: number;
+        reposts: number;
+        clicks: number;
+        impressions: number;
+      }> = [];
+      const failed: Array<{ id: number; platform: PlatformId; message: string }> = [];
+
+      for (const row of logs) {
+        const platform = row.platform as PlatformId;
+        const postUrl = row.postUrl ?? "";
+        try {
+          if (platform === "twitter") {
+            const id = parseTwitterStatusId(postUrl);
+            const c = creds.twitter;
+            if (!id || !c) {
+              failed.push({
+                id: row.id,
+                platform,
+                message: "Twitter sync requires tweet URL and credentials.",
+              });
+              continue;
+            }
+            const client = new TwitterApi({
+              appKey: c.apiKey,
+              appSecret: c.apiSecret,
+              accessToken: c.accessToken,
+              accessSecret: c.accessTokenSecret,
+            });
+            const tweet = await client.v2.singleTweet(id, {
+              "tweet.fields": ["public_metrics"],
+            });
+            const m = tweet.data.public_metrics;
+            await updatePublishLogEngagement(row.id, {
+              likes: m?.like_count ?? 0,
+              reposts: m?.retweet_count ?? 0,
+              clicks: m?.reply_count ?? 0,
+              impressions: 0,
+            });
+            updated.push({
+              id: row.id,
+              platform,
+              likes: m?.like_count ?? 0,
+              reposts: m?.retweet_count ?? 0,
+              clicks: m?.reply_count ?? 0,
+              impressions: 0,
+            });
+            continue;
+          }
+
+          if (platform === "mastodon") {
+            const c = creds.mastodon;
+            const statusId = parseMastodonStatusId(postUrl);
+            const instanceUrl = c?.instanceUrl?.replace(/\/+$/, "");
+            if (!c?.accessToken || !instanceUrl || !statusId) {
+              failed.push({
+                id: row.id,
+                platform,
+                message:
+                  "Mastodon sync requires instanceUrl/accessToken credentials and a status URL ending with numeric id.",
+              });
+              continue;
+            }
+            const res = await fetch(`${instanceUrl}/api/v1/statuses/${statusId}`, {
+              headers: { Authorization: `Bearer ${c.accessToken}` },
+            });
+            if (!res.ok) {
+              const message = await res.text().catch(() => res.statusText);
+              failed.push({
+                id: row.id,
+                platform,
+                message: `Mastodon API ${res.status}: ${message}`,
+              });
+              continue;
+            }
+            const data = (await res.json()) as {
+              favourites_count?: number;
+              reblogs_count?: number;
+              replies_count?: number;
+            };
+            await updatePublishLogEngagement(row.id, {
+              likes: Number(data.favourites_count ?? 0),
+              reposts: Number(data.reblogs_count ?? 0),
+              clicks: Number(data.replies_count ?? 0),
+              impressions: 0,
+            });
+            updated.push({
+              id: row.id,
+              platform,
+              likes: Number(data.favourites_count ?? 0),
+              reposts: Number(data.reblogs_count ?? 0),
+              clicks: Number(data.replies_count ?? 0),
+              impressions: 0,
+            });
+            continue;
+          }
+
+          if (platform === "threads") {
+            const c = creds.threads;
+            const postId = postUrl.trim();
+            if (!c?.accessToken || !postId) {
+              failed.push({
+                id: row.id,
+                platform,
+                message: "Threads sync requires accessToken credentials and a stored post id.",
+              });
+              continue;
+            }
+            const fields =
+              "like_count,replies_count,reposts_count,quotes_count,views";
+            const res = await fetch(
+              `${THREADS_GRAPH_BASE}/${encodeURIComponent(
+                postId
+              )}?fields=${fields}&access_token=${encodeURIComponent(c.accessToken)}`
+            );
+            if (!res.ok) {
+              const message = await res.text().catch(() => res.statusText);
+              failed.push({
+                id: row.id,
+                platform,
+                message: `Threads API ${res.status}: ${message}`,
+              });
+              continue;
+            }
+            const data = (await res.json()) as {
+              like_count?: number;
+              replies_count?: number;
+              reposts_count?: number;
+              quotes_count?: number;
+              views?: number;
+            };
+            const reposts =
+              Number(data.reposts_count ?? 0) + Number(data.quotes_count ?? 0);
+            await updatePublishLogEngagement(row.id, {
+              likes: Number(data.like_count ?? 0),
+              reposts,
+              clicks: Number(data.replies_count ?? 0),
+              impressions: Number(data.views ?? 0),
+            });
+            updated.push({
+              id: row.id,
+              platform,
+              likes: Number(data.like_count ?? 0),
+              reposts,
+              clicks: Number(data.replies_count ?? 0),
+              impressions: Number(data.views ?? 0),
+            });
+            continue;
+          }
+
+          failed.push({
+            id: row.id,
+            platform,
+            message: `${platform} engagement sync is not supported yet.`,
+          });
+        } catch (e) {
+          failed.push({
+            id: row.id,
+            platform,
+            message: e instanceof Error ? e.message : String(e),
+          });
+        }
+      }
+
+      return {
+        scanned: logs.length,
+        updatedCount: updated.length,
+        failedCount: failed.length,
+        updated,
+        failed,
+      };
     }),
 
   byBrand: publicProcedure

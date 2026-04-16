@@ -223,6 +223,51 @@ export async function getPublishLogsByBrand(brandId: string, limit = 20) {
     .limit(limit);
 }
 
+export async function listSuccessfulPublishLogsForEngagementSync(params: {
+  brandId: string;
+  platforms?: PlatformId[];
+  limit?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+  const whereParts = [
+    eq(publishLog.brandId, params.brandId),
+    eq(publishLog.status, "success"),
+    isNotNull(publishLog.postUrl),
+  ];
+  if (params.platforms && params.platforms.length > 0) {
+    whereParts.push(inArray(publishLog.platform, params.platforms));
+  }
+  return db
+    .select()
+    .from(publishLog)
+    .where(and(...(whereParts as any)))
+    .orderBy(desc(publishLog.publishedAt))
+    .limit(params.limit ?? 50);
+}
+
+export async function updatePublishLogEngagement(
+  id: number,
+  update: {
+    impressions?: number;
+    likes?: number;
+    reposts?: number;
+    clicks?: number;
+  }
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(publishLog)
+    .set({
+      ...(update.impressions !== undefined ? { impressions: update.impressions } : {}),
+      ...(update.likes !== undefined ? { likes: update.likes } : {}),
+      ...(update.reposts !== undefined ? { reposts: update.reposts } : {}),
+      ...(update.clicks !== undefined ? { clicks: update.clicks } : {}),
+    })
+    .where(eq(publishLog.id, id));
+}
+
 export type EngagementScoredPostSignal = {
   postId: string;
   platform: PlatformId;

@@ -253,7 +253,7 @@ export default function VideosPage() {
             <section className="space-y-3 border rounded-lg p-4">
               <h2 className="text-sm font-semibold uppercase tracking-widest">Auto-post video</h2>
               <p className="text-xs text-muted-foreground">
-                Supported now: Telegram and Discord. Other platforms return clear failure messages.
+                Supported now: Twitter/X, Mastodon, Threads, Telegram, and Discord.
               </p>
               <div className="flex flex-wrap gap-2">
                 {PLATFORMS.map(p => (
