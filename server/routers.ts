@@ -1,10 +1,27 @@
-import { COOKIE_NAME } from "@shared/const";
-import { getSessionCookieOptions } from "./_core/cookies";
-import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import bcrypt from "bcryptjs";
+import { nanoid } from "nanoid";
 import { z } from "zod";
 import {
+  COOKIE_NAME,
+  DASHBOARD_SESSION_COOKIE,
+  ONE_YEAR_MS,
+  PLATFORMS,
+} from "@shared/const";
+import { getSessionCookieOptions } from "./_core/cookies";
+import { ENV } from "./_core/env";
+import { invokeLLM } from "./_core/llm";
+import {
+  dashboardProcedure,
+  ownerProcedure,
+  protectedProcedure,
+  publicProcedure,
+  router,
+} from "./_core/trpc";
+import { TRPCError } from "@trpc/server";
+import { systemRouter } from "./_core/systemRouter";
+import {
   getAllBrands,
+  getBrandByIdScoped,
   getBrandById,
   upsertBrand,
   toggleBrandActive,
@@ -17,64 +34,139 @@ import {
   getPipelineRunsByBrand,
   insertPipelineRun,
   updatePipelineRun,
+  insertDashboardSession,
+  upsertPlatformCredential,
+  getPlatformCredentialsForBrand,
 } from "./db";
-import { invokeLLM } from "./_core/llm";
+import { postsRouter } from "./routers/posts";
+import { scheduleRouter } from "./routers/schedule";
+import { clientsRouter } from "./routers/clients";
+import { billingRouter } from "./routers/billing";
+import { approvalRouter } from "./routers/approval";
+import { analyticsRouter } from "./routers/analytics";
+
+const platformSchema = z.enum(PLATFORMS);
 
 export const appRouter = router({
   system: systemRouter,
 
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(({ ctx }) => {
+      if (ctx.client) {
+        return {
+          kind: "client" as const,
+          client: {
+            id: ctx.client.id,
+            name: ctx.client.name,
+            email: ctx.client.email,
+            plan: ctx.client.plan,
+          },
+        };
+      }
+      if (ctx.user) {
+        return { kind: "owner" as const, user: ctx.user };
+      }
+      return null;
+    }),
+
+    dashboardLogin: publicProcedure
+      .input(z.object({ password: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        if (!ENV.dashboardPasswordHash) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "Dashboard password login is not configured — set DASHBOARD_PASSWORD_HASH (bcrypt).",
+          });
+        }
+        const ok = await bcrypt.compare(input.password, ENV.dashboardPasswordHash);
+        if (!ok) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Invalid password.",
+          });
+        }
+        const token = nanoid(48);
+        const expiresAt = new Date(Date.now() + ONE_YEAR_MS);
+        await insertDashboardSession({
+          token,
+          expiresAt,
+          clientId: null,
+        });
+        const opts = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(DASHBOARD_SESSION_COOKIE, token, {
+          ...opts,
+          maxAge: ONE_YEAR_MS,
+        });
+        return { success: true as const };
+      }),
+
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      ctx.res.clearCookie(DASHBOARD_SESSION_COOKIE, {
+        ...cookieOptions,
+        maxAge: -1,
+      });
       return { success: true } as const;
     }),
   }),
 
   brands: router({
-    list: publicProcedure.query(async () => {
-      return getAllBrands();
+    list: dashboardProcedure.query(async ({ ctx }) => {
+      return getAllBrands(ctx.client?.id);
     }),
 
-    get: publicProcedure
+    all: dashboardProcedure.query(async ({ ctx }) => {
+      return getAllBrands(ctx.client?.id);
+    }),
+
+    get: dashboardProcedure
       .input(z.object({ brandId: z.string() }))
-      .query(async ({ input }) => {
-        return getBrandById(input.brandId);
+      .query(async ({ ctx, input }) => {
+        return getBrandByIdScoped(input.brandId, ctx.client?.id ?? null);
       }),
 
-    upsert: protectedProcedure
-      .input(z.object({
-        brandId: z.string(),
-        name: z.string(),
-        description: z.string().optional(),
-        audience: z.string().optional(),
-        tone: z.string().optional(),
-        url: z.string().optional(),
-        schedule: z.string().optional(),
-        accentColor: z.string().optional(),
-        active: z.boolean().optional(),
-        cta: z.string().optional(),
-      }))
+    upsert: ownerProcedure
+      .input(
+        z.object({
+          brandId: z.string(),
+          name: z.string(),
+          description: z.string().optional(),
+          audience: z.string().optional(),
+          tone: z.string().optional(),
+          url: z.string().optional(),
+          schedule: z.string().optional(),
+          accentColor: z.string().optional(),
+          active: z.boolean().optional(),
+          cta: z.string().optional(),
+          clientId: z.number().nullable().optional(),
+          requiresApproval: z.boolean().optional(),
+        })
+      )
       .mutation(async ({ input }) => {
-        await upsertBrand(input);
+        await upsertBrand(input as Parameters<typeof upsertBrand>[0]);
         return { success: true };
       }),
 
-    toggle: protectedProcedure
+    toggle: ownerProcedure
       .input(z.object({ brandId: z.string(), active: z.boolean() }))
       .mutation(async ({ input }) => {
         await toggleBrandActive(input.brandId, input.active);
         return { success: true };
       }),
 
-    updateSchedule: protectedProcedure
-      .input(z.object({
-        brandId: z.string(),
-        frequency: z.enum(["daily", "weekly", "monthly", "off"]),
-        postTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Must be HH:MM format"),
-        postDays: z.array(z.union([z.string(), z.number()])).optional(),
-      }))
+    updateSchedule: ownerProcedure
+      .input(
+        z.object({
+          brandId: z.string(),
+          frequency: z.enum(["daily", "weekly", "monthly", "off"]),
+          postTime: z
+            .string()
+            .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Must be HH:MM format"),
+          postDays: z.array(z.union([z.string(), z.number()])).optional(),
+        })
+      )
       .mutation(async ({ input }) => {
         await updateBrandSchedule(input.brandId, {
           frequency: input.frequency,
@@ -83,25 +175,60 @@ export const appRouter = router({
         });
         return { success: true };
       }),
-  }),
 
-  posts: router({
-    byBrand: publicProcedure
-      .input(z.object({ brandId: z.string(), limit: z.number().optional() }))
-      .query(async ({ input }) => {
-        return getPostsByBrand(input.brandId, input.limit ?? 50);
+    listCredentialPlatforms: dashboardProcedure
+      .input(z.object({ brandId: z.string().min(1) }))
+      .query(async ({ ctx, input }) => {
+        const brand = await getBrandByIdScoped(
+          input.brandId,
+          ctx.client?.id ?? null
+        );
+        if (!brand) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Brand not found or not accessible for this account.",
+          });
+        }
+        const rows = await getPlatformCredentialsForBrand(input.brandId);
+        return rows.map(r => r.platform);
       }),
 
-    all: publicProcedure
-      .input(z.object({ limit: z.number().optional() }).optional())
-      .query(async ({ input }) => {
-        return getAllPosts(input?.limit ?? 100);
+    setPlatformCredentials: ownerProcedure
+      .input(
+        z.object({
+          brandId: z.string().min(1),
+          platform: platformSchema,
+          credentials: z.record(z.string(), z.string()),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const brand = await getBrandById(input.brandId);
+        if (!brand) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Brand not found.",
+          });
+        }
+        await upsertPlatformCredential(
+          input.brandId,
+          input.platform,
+          input.credentials
+        );
+        return { success: true as const };
       }),
-
-    stats: publicProcedure.query(async () => {
-      return getPostStats();
-    }),
   }),
+
+  posts: postsRouter,
+
+  schedule: scheduleRouter,
+
+  clients: clientsRouter,
+
+  billing: billingRouter,
+
+  approval: approvalRouter,
+
+  analytics: analyticsRouter,
 
   pipeline: router({
     recent: publicProcedure
@@ -122,7 +249,6 @@ export const appRouter = router({
         const brand = await getBrandById(input.brandId);
         if (!brand) throw new Error("Brand not found");
 
-        // Insert a running pipeline record
         await insertPipelineRun({
           brandId: input.brandId,
           status: "running",
@@ -178,8 +304,11 @@ Return JSON with a posts array. Each post max 280 chars. Score 1-10 for quality.
           });
 
           const raw = response?.choices?.[0]?.message?.content ?? "{}";
-          const parsed = JSON.parse(typeof raw === "string" ? raw : JSON.stringify(raw));
-          const generatedPosts: { content: string; score: number }[] = parsed.posts ?? [];
+          const parsed = JSON.parse(
+            typeof raw === "string" ? raw : JSON.stringify(raw)
+          );
+          const generatedPosts: { content: string; score: number }[] =
+            parsed.posts ?? [];
 
           let approved = 0;
           for (const p of generatedPosts) {
