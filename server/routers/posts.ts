@@ -155,7 +155,8 @@ export const postsRouter = router({
             message: "AI returned empty content — try again or adjust the hint.",
           });
         }
-        return { content: trimmed };
+        const normalized = trimmed.length > 280 ? `${trimmed.slice(0, 277)}...` : trimmed;
+        return { content: normalized };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error("[Posts:generate]", msg);

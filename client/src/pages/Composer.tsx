@@ -183,7 +183,12 @@ export default function Composer() {
                   variant="outline"
                   size="sm"
                   disabled={generate.isPending || !brandId}
-                  onClick={() => generate.mutate({ brandId })}
+                  onClick={() =>
+                    generate.mutate({
+                      brandId,
+                      hint: content.trim() || undefined,
+                    })
+                  }
                 >
                   {generate.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
