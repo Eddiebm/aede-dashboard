@@ -42,15 +42,19 @@ export function useAuth(options?: UseAuthOptions) {
   }, [logoutMutation, utils]);
 
   const state = useMemo(() => {
-    localStorage.setItem(
-      "manus-runtime-user-info",
-      JSON.stringify(meQuery.data)
-    );
+    const data = meQuery.data;
+    const user = data?.kind === "owner" ? data.user : null;
+    const client = data?.kind === "client" ? data.client : null;
+    const isOwner = data?.kind === "owner";
+    const isClientSession = data?.kind === "client";
     return {
-      user: meQuery.data ?? null,
+      user,
+      client,
+      isOwner,
+      isClientSession,
       loading: meQuery.isLoading || logoutMutation.isPending,
       error: meQuery.error ?? logoutMutation.error ?? null,
-      isAuthenticated: Boolean(meQuery.data),
+      isAuthenticated: Boolean(data),
     };
   }, [
     meQuery.data,
@@ -63,17 +67,17 @@ export function useAuth(options?: UseAuthOptions) {
   useEffect(() => {
     if (!redirectOnUnauthenticated) return;
     if (meQuery.isLoading || logoutMutation.isPending) return;
-    if (state.user) return;
+    if (state.isAuthenticated) return;
     if (typeof window === "undefined") return;
     if (window.location.pathname === redirectPath) return;
 
-    window.location.href = redirectPath
+    window.location.href = redirectPath;
   }, [
     redirectOnUnauthenticated,
     redirectPath,
     logoutMutation.isPending,
     meQuery.isLoading,
-    state.user,
+    state.isAuthenticated,
   ]);
 
   return {

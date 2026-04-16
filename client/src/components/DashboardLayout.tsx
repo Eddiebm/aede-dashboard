@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,18 +20,20 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
+import { trpc } from "@/lib/trpc";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
+import {
+  BarChart2,
+  ClipboardCheck,
+  CreditCard,
+  LayoutDashboard,
+  LogOut,
+  PanelLeft,
+  PenLine,
+  Users,
+} from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
-import { useLocation } from "wouter";
-import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
-import { Button } from "./ui/button";
-
-const menuItems = [
-  { icon: LayoutDashboard, label: "Page 1", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
-];
+import { Link, useLocation } from "wouter";
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
@@ -46,37 +49,46 @@ export default function DashboardLayout({
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
-  const { loading, user } = useAuth();
+  const { loading, isAuthenticated, isOwner } = useAuth();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
   if (loading) {
-    return <DashboardLayoutSkeleton />
+    return (
+      <div className="min-h-screen flex items-center justify-center font-mono text-sm text-muted-foreground">
+        Loading…
+      </div>
+    );
   }
 
-  if (!user) {
+  if (!isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
           <div className="flex flex-col items-center gap-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-center">
+            <h1 className="text-2xl font-semibold tracking-tight text-center font-mono">
               Sign in to continue
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Access to this dashboard requires authentication. Continue to launch the login flow.
+              Use owner password login or your client portal credentials.
             </p>
           </div>
-          <Button
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
-            size="lg"
-            className="w-full shadow-lg hover:shadow-xl transition-all"
-          >
-            Sign in
-          </Button>
+          <div className="flex flex-col gap-2 w-full">
+            <Link
+              href="/login"
+              className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:opacity-90"
+            >
+              Owner login
+            </Link>
+            <Link
+              href="/client"
+              className="inline-flex h-11 items-center justify-center rounded-md border border-border px-4 text-sm font-medium hover:bg-secondary/60"
+            >
+              Client portal
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -90,7 +102,7 @@ export default function DashboardLayout({
         } as CSSProperties
       }
     >
-      <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
+      <DashboardLayoutContent setSidebarWidth={setSidebarWidth} isOwner={!!isOwner}>
         {children}
       </DashboardLayoutContent>
     </SidebarProvider>
@@ -100,20 +112,44 @@ export default function DashboardLayout({
 type DashboardLayoutContentProps = {
   children: React.ReactNode;
   setSidebarWidth: (width: number) => void;
+  isOwner: boolean;
 };
 
 function DashboardLayoutContent({
   children,
   setSidebarWidth,
+  isOwner,
 }: DashboardLayoutContentProps) {
-  const { user, logout } = useAuth();
+  const { user, client, logout } = useAuth();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
+  const pending = trpc.approval.pendingCount.useQuery(undefined, {
+    enabled: isOwner,
+  });
+
+  const menuItems = [
+    { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+    { icon: PenLine, label: "Compose", path: "/compose" },
+    ...(isOwner
+      ? [
+          { icon: Users, label: "Clients", path: "/clients" },
+          { icon: CreditCard, label: "Billing", path: "/billing" },
+          {
+            icon: ClipboardCheck,
+            label: "Review queue",
+            path: "/review",
+            badge: pending.data?.count,
+          },
+          { icon: BarChart2, label: "Analytics", path: "/analytics" },
+        ]
+      : []),
+  ];
+
+  const activeMenuItem = menuItems.find(item => item.path === location);
 
   useEffect(() => {
     if (isCollapsed) {
@@ -151,6 +187,9 @@ function DashboardLayoutContent({
     };
   }, [isResizing, setSidebarWidth]);
 
+  const displayName = client?.name ?? user?.name ?? "Account";
+  const displayEmail = client?.email ?? user?.email ?? "";
+
   return (
     <>
       <div className="relative" ref={sidebarRef}>
@@ -170,8 +209,8 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate">
-                    Navigation
+                  <span className="font-semibold tracking-tight truncate font-mono text-xs uppercase text-muted-foreground">
+                    AEDE
                   </span>
                 </div>
               ) : null}
@@ -188,12 +227,19 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
+                      className={`h-10 transition-all font-normal font-mono text-sm`}
                     >
                       <item.icon
                         className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
                       />
-                      <span>{item.label}</span>
+                      <span className="flex items-center gap-2 flex-1">
+                        {item.label}
+                        {"badge" in item && item.badge != null && item.badge > 0 ? (
+                          <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0">
+                            {item.badge}
+                          </Badge>
+                        ) : null}
+                      </span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
@@ -206,17 +252,13 @@ function DashboardLayoutContent({
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <Avatar className="h-9 w-9 border shrink-0">
-                    <AvatarFallback className="text-xs font-medium">
-                      {user?.name?.charAt(0).toUpperCase()}
+                    <AvatarFallback className="text-xs font-medium font-mono">
+                      {displayName.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate leading-none">
-                      {user?.name || "-"}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate mt-1.5">
-                      {user?.email || "-"}
-                    </p>
+                    <p className="text-sm font-medium truncate leading-none">{displayName}</p>
+                    <p className="text-xs text-muted-foreground truncate mt-1.5">{displayEmail}</p>
                   </div>
                 </button>
               </DropdownMenuTrigger>
@@ -249,7 +291,7 @@ function DashboardLayoutContent({
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
               <div className="flex items-center gap-3">
                 <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">
+                  <span className="tracking-tight text-foreground font-mono text-sm">
                     {activeMenuItem?.label ?? "Menu"}
                   </span>
                 </div>

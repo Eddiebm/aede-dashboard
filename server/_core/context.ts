@@ -1,11 +1,23 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
-import type { User } from "../../drizzle/schema";
+import { parse as parseCookies } from "cookie";
+import type { User, Client } from "../../drizzle/schema";
+import {
+  getDashboardSessionByToken,
+  getUserByOpenId,
+  getClientById,
+  upsertUser,
+} from "../db";
+import { ENV } from "./env";
 import { sdk } from "./sdk";
+import { DASHBOARD_SESSION_COOKIE } from "@shared/const";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
+  /** Owner / OAuth user — set when JWT session or owner dashboard session (not client). */
   user: User | null;
+  /** Multi-tenant client account — mutually exclusive with owner `user` for dashboard session auth. */
+  client: Client | null;
 };
 
 // Local dev admin user — injected automatically when running on localhost
@@ -42,7 +54,9 @@ function isLocalDev(req: CreateExpressContextOptions["req"]): boolean {
 export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {
+  const { req } = opts;
   let user: User | null = null;
+  let client: Client | null = null;
 
   // Inject local dev user automatically when running on localhost
   // without Manus OAuth — no login required in this mode.
@@ -51,19 +65,57 @@ export async function createContext(
       req: opts.req,
       res: opts.res,
       user: LOCAL_DEV_USER,
+      client: null,
     };
   }
+  const raw = req.headers.cookie;
+  const cookies = raw ? parseCookies(raw) : {};
+  const dashToken = cookies[DASHBOARD_SESSION_COOKIE];
 
-  try {
-    user = await sdk.authenticateRequest(opts.req);
-  } catch (error) {
-    // Authentication is optional for public procedures.
-    user = null;
+  if (dashToken) {
+    try {
+      const session = await getDashboardSessionByToken(dashToken);
+      if (session && new Date(session.expiresAt).getTime() > Date.now()) {
+        if (session.clientId != null) {
+          const row = await getClientById(session.clientId);
+          if (row) {
+            client = row;
+          } else {
+            console.warn("[Auth] Dashboard session references missing client id", session.clientId);
+          }
+        } else if (ENV.ownerOpenId) {
+          let u = await getUserByOpenId(ENV.ownerOpenId);
+          if (!u) {
+            await upsertUser({
+              openId: ENV.ownerOpenId,
+              name: "Owner",
+              role: "admin",
+              lastSignedIn: new Date(),
+            });
+            u = await getUserByOpenId(ENV.ownerOpenId);
+          }
+          user = u ?? null;
+        } else {
+          console.warn("[Auth] OWNER_OPEN_ID is not set — cannot resolve owner dashboard session");
+        }
+      }
+    } catch (e) {
+      console.error("[Auth] Failed to resolve dashboard session", e);
+    }
+  }
+
+  if (!user && !client) {
+    try {
+      user = await sdk.authenticateRequest(req);
+    } catch {
+      user = null;
+    }
   }
 
   return {
     req: opts.req,
     res: opts.res,
     user,
+    client,
   };
 }
