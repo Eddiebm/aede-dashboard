@@ -12,7 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PLATFORM_CHAR_LIMIT, type PlatformId } from "@shared/constants";
+import {
+  DEFAULT_TEXT_CHAR_LIMIT,
+  PLATFORM_CHAR_LIMIT,
+  type PlatformId,
+} from "@shared/constants";
 import { toast } from "sonner";
 import {
   Table,
@@ -30,7 +34,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 
 function minLimitForPlatforms(platforms: PlatformId[]): number {
-  if (platforms.length === 0) return 280;
+  if (platforms.length === 0) return DEFAULT_TEXT_CHAR_LIMIT;
   return Math.min(...platforms.map(p => PLATFORM_CHAR_LIMIT[p]));
 }
 
@@ -38,6 +42,7 @@ export default function Composer() {
   const [brandId, setBrandId] = useState<string>("");
   const [content, setContent] = useState("");
   const [selected, setSelected] = useState<PlatformId[]>([]);
+  const [aiVariants, setAiVariants] = useState<string[] | null>(null);
   const [tab, setTab] = useState<"now" | "schedule">("now");
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
   const [scheduledTime, setScheduledTime] = useState("12:00");
@@ -82,7 +87,13 @@ export default function Composer() {
 
   const generate = trpc.posts.generate.useMutation({
     onSuccess: d => {
-      setContent(d.content);
+      if (Array.isArray(d.variants) && d.variants.length > 1) {
+        setAiVariants(d.variants);
+        setContent(d.variants[0]);
+      } else {
+        setAiVariants(null);
+        setContent(d.content);
+      }
       toast.success("Content generated");
     },
     onError: e => toast.error(e.message),
@@ -187,6 +198,8 @@ export default function Composer() {
                     generate.mutate({
                       brandId,
                       hint: content.trim() || undefined,
+                        platforms: selected.length > 0 ? selected : undefined,
+                        variants: selected.length > 0 ? 2 : 1,
                     })
                   }
                 >
@@ -208,6 +221,28 @@ export default function Composer() {
                   ? "Select platforms to see the strictest character limit."
                   : `${remaining} characters remaining (limit ${limit} for selected platforms)`}
               </p>
+              {aiVariants && aiVariants.length > 1 ? (
+                <div className="space-y-2 mt-2">
+                  <p className="text-xs text-muted-foreground">
+                    Pick an AI variant to use:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {aiVariants.map((v, idx) => (
+                      <button
+                        key={`${idx}-${v.slice(0, 12)}`}
+                        type="button"
+                        onClick={() => setContent(v)}
+                        className="border border-border rounded-lg px-3 py-2 text-left hover:bg-secondary/40 transition-colors"
+                      >
+                        <p className="text-xs text-muted-foreground uppercase tracking-widest">
+                          Variant {idx + 1}
+                        </p>
+                        <p className="text-sm mt-1 line-clamp-4">{v}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <Tabs value={tab} onValueChange={v => setTab(v as "now" | "schedule")}>

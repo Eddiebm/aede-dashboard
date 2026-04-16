@@ -1,4 +1,4 @@
-import { eq, desc, asc, count, and, gte, lte, sql, inArray } from "drizzle-orm";
+import { eq, desc, asc, count, and, gte, lte, sql, inArray, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -25,7 +25,13 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import type { PlatformId } from "@shared/constants";
-import { SCHEDULER_BATCH_LIMIT } from "@shared/constants";
+import {
+  SCHEDULER_BATCH_LIMIT,
+  LEARNING_ENGAGEMENT_WEIGHTS,
+  LEARNING_LOOKBACK_DAYS,
+  LEARNING_MAX_FETCH_MULTIPLIER,
+  LEARNING_TOP_POSTS_PER_PLATFORM,
+} from "@shared/constants";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -215,6 +221,86 @@ export async function getPublishLogsByBrand(brandId: string, limit = 20) {
     .where(eq(publishLog.brandId, brandId))
     .orderBy(desc(publishLog.publishedAt))
     .limit(limit);
+}
+
+export type EngagementScoredPostSignal = {
+  postId: string;
+  platform: PlatformId;
+  content: string;
+  publishedAt: Date;
+  score: number;
+};
+
+function engagementScore(row: {
+  impressions?: number | null;
+  likes?: number | null;
+  reposts?: number | null;
+  clicks?: number | null;
+}) {
+  return (
+    (Number(row.impressions ?? 0) || 0) * LEARNING_ENGAGEMENT_WEIGHTS.impressions +
+    (Number(row.likes ?? 0) || 0) * LEARNING_ENGAGEMENT_WEIGHTS.likes +
+    (Number(row.reposts ?? 0) || 0) * LEARNING_ENGAGEMENT_WEIGHTS.reposts +
+    (Number(row.clicks ?? 0) || 0) * LEARNING_ENGAGEMENT_WEIGHTS.clicks
+  );
+}
+
+export async function getTopEngagementSignalsForBrand(params: {
+  brandId: string;
+  platforms?: PlatformId[];
+  limit?: number;
+  lookbackDays?: number;
+}) {
+  const { brandId, platforms, limit = LEARNING_TOP_POSTS_PER_PLATFORM, lookbackDays = LEARNING_LOOKBACK_DAYS } = params;
+  const db = await getDb();
+  if (!db) return [];
+
+  const from = new Date();
+  from.setUTCDate(from.getUTCDate() - lookbackDays);
+
+  const fetchLimit = limit * LEARNING_MAX_FETCH_MULTIPLIER;
+  const platformCond =
+    platforms && platforms.length > 0 ? inArray(publishLog.platform, platforms) : undefined;
+
+  const whereParts = [
+    eq(publishLog.brandId, brandId),
+    eq(publishLog.status, "success"),
+    gte(publishLog.publishedAt, from),
+    isNotNull(publishLog.content),
+  ];
+  if (platformCond) whereParts.push(platformCond as any);
+
+  const rows = await db
+    .select({
+      postId: publishLog.postId,
+      platform: publishLog.platform,
+      content: publishLog.content,
+      publishedAt: publishLog.publishedAt,
+      impressions: publishLog.impressions,
+      likes: publishLog.likes,
+      reposts: publishLog.reposts,
+      clicks: publishLog.clicks,
+    })
+    .from(publishLog)
+    .where(and(...(whereParts as any)))
+    .orderBy(desc(publishLog.publishedAt))
+    .limit(fetchLimit);
+
+  const signals: EngagementScoredPostSignal[] = rows
+    .map(r => {
+      if (!r.content) return null;
+      return {
+        postId: r.postId,
+        platform: r.platform as PlatformId,
+        content: String(r.content),
+        publishedAt: r.publishedAt,
+        score: engagementScore(r),
+      };
+    })
+    .filter((x): x is EngagementScoredPostSignal => x !== null);
+
+  signals.sort((a, b) => b.score - a.score);
+  return signals.slice(0, limit);
 }
 
 export async function insertMediaAsset(row: InsertMediaAsset) {

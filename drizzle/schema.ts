@@ -141,6 +141,7 @@ export const publishLog = mysqlTable("publish_log", {
   brandId: varchar("brandId", { length: 64 }).notNull(),
   platform: platformEnum.notNull(),
   status: publishStatusEnum.notNull(),
+  content: text("content"),
   postUrl: varchar("postUrl", { length: 1024 }),
   errorMessage: text("errorMessage"),
   simulated: boolean("simulated").default(false).notNull(),

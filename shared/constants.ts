@@ -31,6 +31,7 @@ export const PLATFORM_CHAR_LIMIT: Record<PlatformId, number> = {
   telegram: 4096,
   discord: 2000,
 };
+export const DEFAULT_TEXT_CHAR_LIMIT = 280;
 
 export const BLUESKY_SERVICE_URL = "https://bsky.social";
 export const TELEGRAM_API_BASE = "https://api.telegram.org";
@@ -43,6 +44,29 @@ export const SCHEDULER_POLL_INTERVAL_MS = 60_000;
 export const SCHEDULER_BATCH_LIMIT = 25;
 export const MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024;
 export const DEFAULT_VIDEO_GENERATION_DURATION_SEC = 8;
+export const LEARNING_LOOKBACK_DAYS = 30;
+export const LEARNING_TOP_POSTS_PER_PLATFORM = 10;
+export const LEARNING_ENGAGEMENT_WEIGHTS = {
+  likes: 1,
+  reposts: 2,
+  clicks: 2,
+  impressions: 0.1,
+};
+export const LEARNING_CTA_KEYWORDS = [
+  "read",
+  "subscribe",
+  "join",
+  "learn",
+  "comment",
+  "reply",
+  "dm",
+  "message",
+  "download",
+  "guide",
+  "check",
+  "watch",
+] as const;
+export const LEARNING_MAX_FETCH_MULTIPLIER = 10;
 
 export const PLANS = ["free", "starter", "pro"] as const;
 export type PlanId = (typeof PLANS)[number];

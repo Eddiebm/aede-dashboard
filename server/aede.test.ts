@@ -23,6 +23,7 @@ vi.mock("./db", () => ({
   insertPipelineRun: vi.fn(),
   updatePipelineRun: vi.fn(),
   getPlatformCredentialsForBrand: vi.fn(),
+  getTopEngagementSignalsForBrand: vi.fn(),
   insertApprovalQueue: vi.fn(),
   getPublishLogsByBrand: vi.fn(),
   insertScheduledPost: vi.fn(),
@@ -132,8 +133,23 @@ beforeEach(() => {
     },
   ] as any);
   vi.mocked(db.getPublishLogsByBrand).mockResolvedValue([]);
+  vi.mocked(db.getTopEngagementSignalsForBrand).mockResolvedValue([
+    {
+      postId: "post-1",
+      platform: "twitter",
+      content: "Read the full guide. Reply with your challenge!",
+      publishedAt: new Date(),
+      score: 10,
+    },
+  ] as any);
   vi.mocked(invokeLLM).mockResolvedValue({
-    choices: [{ message: { content: "Generated test content." } }],
+    choices: [
+      {
+        message: {
+          content: JSON.stringify({ variants: ["Generated test content."] }),
+        },
+      },
+    ],
   } as any);
   vi.mocked(runPublishToPlatforms).mockResolvedValue([
     { platform: "twitter", result: { success: true, postUrl: "https://x.com/post/1" } },

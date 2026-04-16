@@ -29,6 +29,13 @@
       "when": 1776309757977,
       "tag": "0003_strong_the_professor",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1776348312184,
+      "tag": "0004_odd_rattler",
+      "breakpoints": true
     }
   ]
 }
