@@ -20,6 +20,8 @@ import {
   InsertClient,
   InsertScheduledPost,
   InsertApprovalQueue,
+  mediaAssets,
+  InsertMediaAsset,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import type { PlatformId } from "@shared/constants";
@@ -212,6 +214,30 @@ export async function getPublishLogsByBrand(brandId: string, limit = 20) {
     .from(publishLog)
     .where(eq(publishLog.brandId, brandId))
     .orderBy(desc(publishLog.publishedAt))
+    .limit(limit);
+}
+
+export async function insertMediaAsset(row: InsertMediaAsset) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(mediaAssets).values(row);
+}
+
+export async function getMediaAssetById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(mediaAssets).where(eq(mediaAssets.id, id)).limit(1);
+  return rows[0];
+}
+
+export async function listMediaAssetsByBrand(brandId: string, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(mediaAssets)
+    .where(eq(mediaAssets.brandId, brandId))
+    .orderBy(desc(mediaAssets.createdAt))
     .limit(limit);
 }
 

@@ -18,4 +18,6 @@ export const ENV = {
   publicAppUrl: process.env.PUBLIC_APP_URL ?? "http://localhost:3000",
   /** Client row used for owner workspace Stripe subscription (optional). */
   ownerBillingEmail: process.env.OWNER_BILLING_EMAIL ?? "",
+  videoGenerationApiUrl: process.env.VIDEO_GENERATION_API_URL ?? "",
+  videoGenerationApiKey: process.env.VIDEO_GENERATION_API_KEY ?? "",
 };

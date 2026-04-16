@@ -41,6 +41,8 @@ export const PUBLISHER_HTTP_TIMEOUT_MS = 30_000;
 export const SCHEDULER_POLL_INTERVAL_MS = 60_000;
 /** Max scheduled rows to process per scheduler tick */
 export const SCHEDULER_BATCH_LIMIT = 25;
+export const MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024;
+export const DEFAULT_VIDEO_GENERATION_DURATION_SEC = 8;
 
 export const PLANS = ["free", "starter", "pro"] as const;
 export type PlanId = (typeof PLANS)[number];

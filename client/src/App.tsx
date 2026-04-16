@@ -13,6 +13,7 @@ import Clients from "./pages/Clients";
 import Billing from "./pages/Billing";
 import ReviewQueue from "./pages/ReviewQueue";
 import Analytics from "./pages/Analytics";
+import Videos from "./pages/Videos";
 
 function Router() {
   return (
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/billing" component={Billing} />
       <Route path="/review" component={ReviewQueue} />
       <Route path="/analytics" component={Analytics} />
+      <Route path="/videos" component={Videos} />
       <Route path="/brand/:brandId" component={BrandDetail} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

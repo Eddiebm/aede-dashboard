@@ -61,6 +61,7 @@ export const approvalStatusEnum = mysqlEnum("approval_status", [
 ]);
 
 export const clientPlanEnum = mysqlEnum("client_plan", ["free", "starter", "pro"]);
+export const mediaSourceEnum = mysqlEnum("media_source", ["generated", "uploaded", "edited"]);
 
 // ─── Client accounts (multi-tenant) ───────────────────────────────────────────
 export const clients = mysqlTable("clients", {
@@ -152,6 +153,20 @@ export const publishLog = mysqlTable("publish_log", {
 
 export type PublishLogRow = typeof publishLog.$inferSelect;
 export type InsertPublishLog = typeof publishLog.$inferInsert;
+
+// ─── Media assets (video files) ───────────────────────────────────────────────
+export const mediaAssets = mysqlTable("media_assets", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: varchar("brandId", { length: 64 }).notNull(),
+  source: mediaSourceEnum.notNull(),
+  mimeType: varchar("mimeType", { length: 128 }).notNull(),
+  storageKey: varchar("storageKey", { length: 512 }).notNull(),
+  storageUrl: varchar("storageUrl", { length: 1024 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type MediaAssetRow = typeof mediaAssets.$inferSelect;
+export type InsertMediaAsset = typeof mediaAssets.$inferInsert;
 
 // ─── Scheduled posts ─────────────────────────────────────────────────────────
 export const scheduledPosts = mysqlTable("scheduled_posts", {

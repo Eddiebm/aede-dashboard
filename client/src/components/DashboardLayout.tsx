@@ -31,6 +31,7 @@ import {
   PanelLeft,
   PenLine,
   Users,
+  Video,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -137,6 +138,7 @@ function DashboardLayoutContent({
     ...(isOwner
       ? [
           { icon: Users, label: "Clients", path: "/clients" },
+          { icon: Video, label: "Videos", path: "/videos" },
           { icon: CreditCard, label: "Billing", path: "/billing" },
           {
             icon: ClipboardCheck,

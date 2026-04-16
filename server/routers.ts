@@ -44,6 +44,7 @@ import { clientsRouter } from "./routers/clients";
 import { billingRouter } from "./routers/billing";
 import { approvalRouter } from "./routers/approval";
 import { analyticsRouter } from "./routers/analytics";
+import { videoRouter } from "./routers/video";
 
 const platformSchema = z.enum(PLATFORMS);
 
@@ -229,6 +230,7 @@ export const appRouter = router({
   approval: approvalRouter,
 
   analytics: analyticsRouter,
+  video: videoRouter,
 
   pipeline: router({
     recent: publicProcedure
