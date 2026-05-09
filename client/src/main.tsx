@@ -5,42 +5,27 @@ import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
-import { getLoginUrl } from "./const";
 import "./index.css";
 
 const queryClient = new QueryClient();
 
-// In local dev mode (no Manus OAuth configured), skip the login redirect
-// so the dashboard is fully accessible at http://localhost:3000
-const isLocalDev =
-  (import.meta.env.VITE_APP_ID === "local" || !import.meta.env.VITE_APP_ID) &&
-  (window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1");
-
 const redirectToLoginIfUnauthorized = (error: unknown) => {
-  if (isLocalDev) return; // skip redirect in local dev mode
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
-
-  const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
-  if (!isUnauthorized) return;
-
-  window.location.href = getLoginUrl();
+  if (error.message === UNAUTHED_ERR_MSG) {
+    window.location.href = "/login";
+  }
 };
 
 queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
-    const error = event.query.state.error;
-    redirectToLoginIfUnauthorized(error);
-    if (!isLocalDev) console.error("[API Query Error]", error);
+    redirectToLoginIfUnauthorized(event.query.state.error);
   }
 });
 
 queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
-    const error = event.mutation.state.error;
-    redirectToLoginIfUnauthorized(error);
-    if (!isLocalDev) console.error("[API Mutation Error]", error);
+    redirectToLoginIfUnauthorized(event.mutation.state.error);
   }
 });
 

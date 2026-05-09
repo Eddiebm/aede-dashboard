@@ -44,12 +44,14 @@ if [ ! -f .env ]; then
 DATABASE_URL=mysql://root:@localhost:3306/aede_dashboard
 JWT_SECRET=aede-local-secret-key-change-in-production-32chars
 
-# Optional: Manus OAuth (leave blank for local dev without auth)
-VITE_APP_ID=local
-OAUTH_SERVER_URL=http://localhost:3000
-VITE_OAUTH_PORTAL_URL=http://localhost:3000
-OWNER_OPEN_ID=local-owner
-OWNER_NAME=Owner
+# Owner auth — generate with: node -e "require('bcryptjs').hash('yourpassword',10).then(console.log)"
+DASHBOARD_PASSWORD_HASH=
+OWNER_OPEN_ID=owner
+
+# LLM (OpenRouter recommended)
+LLM_API_URL=https://openrouter.ai/api/v1
+LLM_API_KEY=
+LLM_MODEL=google/gemini-2.0-flash-001
 ENVEOF
   echo "✓ .env created — edit DATABASE_URL if your MySQL has a password"
 else

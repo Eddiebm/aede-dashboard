@@ -68,7 +68,7 @@ const adminUser: NonNullable<TrpcContext["user"]> = {
   openId: "owner-open-id",
   name: "Eddie",
   email: "eddie@coare.com",
-  loginMethod: "manus",
+  loginMethod: "password",
   role: "admin",
   createdAt: new Date(),
   updatedAt: new Date(),
