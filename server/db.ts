@@ -1,5 +1,6 @@
 import { eq, desc, asc, count, and, gte, lte, sql, inArray, isNotNull } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
 import {
   InsertUser,
   users,
@@ -38,7 +39,8 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+      _db = drizzle(pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -81,7 +83,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     }
     if (!values.lastSignedIn) values.lastSignedIn = new Date();
     if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
-    await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+    await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);
     throw error;
@@ -138,7 +140,8 @@ export async function getBrandByIdScoped(brandId: string, clientId?: number | nu
 export async function upsertBrand(brand: InsertBrand) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(brands).values(brand).onDuplicateKeyUpdate({
+  await db.insert(brands).values(brand).onConflictDoUpdate({
+    target: brands.brandId,
     set: {
       name: brand.name,
       description: brand.description,
@@ -200,7 +203,8 @@ export async function upsertPlatformCredential(
   await db
     .insert(platformCredentials)
     .values({ brandId, platform, credentials })
-    .onDuplicateKeyUpdate({
+    .onConflictDoUpdate({
+      target: [platformCredentials.brandId, platformCredentials.platform],
       set: { credentials, updatedAt: new Date() },
     });
 }
