@@ -46,6 +46,14 @@ async function publishVideoToPlatform(params: {
     };
   }
 
+  if (platform === "zernio") {
+    return {
+      success: false,
+      errorMessage:
+        "Zernio in AEDE supports text posts only — use Composer for text, or native platforms for video.",
+    };
+  }
+
   if (platform === "telegram") {
     const botToken = credentials.botToken?.trim();
     const channelId = credentials.channelId?.trim();

@@ -41,6 +41,7 @@ export const platformEnum = pgEnum("platform", [
   "threads",
   "telegram",
   "discord",
+  "zernio",
 ]);
 
 export const publishStatusEnum = pgEnum("publish_status", [

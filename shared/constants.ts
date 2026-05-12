@@ -7,6 +7,8 @@ export const PLATFORMS = [
   "threads",
   "telegram",
   "discord",
+  /** Zernio cross-post (server needs ZERNIO_API_KEY; brand needs profileId or targetsJson). */
+  "zernio",
 ] as const;
 export type PlatformId = (typeof PLATFORMS)[number];
 
@@ -30,6 +32,7 @@ export const PLATFORM_CHAR_LIMIT: Record<PlatformId, number> = {
   threads: 500,
   telegram: 4096,
   discord: 2000,
+  zernio: 10000,
 };
 export const DEFAULT_TEXT_CHAR_LIMIT = 280;
 
@@ -37,6 +40,9 @@ export const BLUESKY_SERVICE_URL = "https://bsky.social";
 export const TELEGRAM_API_BASE = "https://api.telegram.org";
 export const LINKEDIN_UGC_POSTS_URL = "https://api.linkedin.com/v2/ugcPosts";
 export const THREADS_GRAPH_BASE = "https://graph.threads.net/v1.0";
+
+/** Default Zernio API base (override with ZERNIO_API_BASE). */
+export const ZERNIO_API_BASE_DEFAULT = "https://zernio.com/api/v1";
 
 export const PUBLISHER_HTTP_TIMEOUT_MS = 30_000;
 export const SCHEDULER_POLL_INTERVAL_MS = 60_000;

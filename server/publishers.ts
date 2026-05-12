@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+
 import { BskyAgent } from "@atproto/api";
 import { TwitterApi } from "twitter-api-v2";
 import {
@@ -6,6 +8,7 @@ import {
   PUBLISHER_HTTP_TIMEOUT_MS,
   TELEGRAM_API_BASE,
   THREADS_GRAPH_BASE,
+  ZERNIO_API_BASE_DEFAULT,
 } from "@shared/constants";
 import type { PlatformId } from "@shared/constants";
 
@@ -14,6 +17,101 @@ export type PublishResult = {
   postUrl?: string;
   errorMessage?: string;
 };
+
+function resolveZernioApiKey(): string | undefined {
+  const filePath = process.env.ZERNIO_API_KEY_FILE?.trim();
+  if (filePath && existsSync(filePath)) {
+    try {
+      const raw = readFileSync(filePath, "utf8").trim();
+      if (raw) return raw;
+    } catch (e) {
+      console.error("[Publisher:Zernio] ZERNIO_API_KEY_FILE read failed:", e);
+    }
+  }
+  return process.env.ZERNIO_API_KEY?.trim() || undefined;
+}
+
+/**
+ * Cross-post via Zernio (https://zernio.com). Requires server env ZERNIO_API_KEY
+ * (or ZERNIO_API_KEY_FILE). Brand credentials: `profileId` OR `targetsJson` (JSON array of
+ * { platform, accountId }).
+ */
+export async function publishZernio(
+  credentials: Record<string, string>,
+  content: string
+): Promise<PublishResult> {
+  const apiKey = resolveZernioApiKey();
+  if (!apiKey) {
+    return {
+      success: false,
+      errorMessage:
+        "Zernio is not configured — set ZERNIO_API_KEY or ZERNIO_API_KEY_FILE on the AEDE server.",
+    };
+  }
+
+  const base = (
+    process.env.ZERNIO_API_BASE?.trim() || ZERNIO_API_BASE_DEFAULT
+  ).replace(/\/$/, "");
+  const profileId = credentials.profileId?.trim();
+  const targetsJson = credentials.targetsJson?.trim();
+
+  let payload: Record<string, unknown>;
+
+  if (targetsJson) {
+    let platforms: unknown;
+    try {
+      platforms = JSON.parse(targetsJson) as unknown;
+    } catch {
+      return {
+        success: false,
+        errorMessage: "Zernio targetsJson must be valid JSON.",
+      };
+    }
+    if (!Array.isArray(platforms) || platforms.length === 0) {
+      return {
+        success: false,
+        errorMessage:
+          "Zernio targetsJson must be a non-empty array of { platform, accountId }.",
+      };
+    }
+    payload = { content, platforms, publishNow: true };
+  } else if (profileId) {
+    payload = { content, queuedFromProfile: profileId, publishNow: true };
+  } else {
+    return {
+      success: false,
+      errorMessage:
+        "Zernio credentials need profileId or targetsJson for this brand (dashboard → platform credentials).",
+    };
+  }
+
+  const { cancel, signal } = withTimeout(PUBLISHER_HTTP_TIMEOUT_MS, "zernio");
+  try {
+    const res = await fetch(`${base}/posts`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      signal,
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      return {
+        success: false,
+        errorMessage: `Zernio error ${res.status}: ${JSON.stringify(data).slice(0, 500)}`,
+      };
+    }
+    return { success: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[Publisher:Zernio]", msg);
+    return { success: false, errorMessage: `Zernio publish failed: ${msg}` };
+  } finally {
+    cancel();
+  }
+}
 
 function withTimeout(
   ms: number,
@@ -382,6 +480,7 @@ const publishers: Record<
   twitter: publishTwitter,
   linkedin: publishLinkedIn,
   threads: publishThreads,
+  zernio: publishZernio,
 };
 
 export async function publishToPlatform(
